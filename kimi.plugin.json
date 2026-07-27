@@ -1,0 +1,25 @@
+{
+  "name": "continual-learning",
+  "version": "1.0.0",
+  "description": "Incrementally learns durable user preferences and workspace facts from Kimi Code session transcripts and keeps AGENTS.md up to date with plain bullet points.",
+  "license": "MIT",
+  "keywords": [
+    "continual-learning",
+    "agent-memory",
+    "transcripts",
+    "hooks",
+    "incremental"
+  ],
+  "skills": "./skills/",
+  "hooks": [
+    {
+      "event": "Stop",
+      "command": "node ./hooks/continual-learning-stop.mjs",
+      "timeout": 10
+    }
+  ],
+  "interface": {
+    "displayName": "Continual Learning",
+    "shortDescription": "Keep AGENTS.md updated from Kimi Code session transcripts"
+  }
+}
