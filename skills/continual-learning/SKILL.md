@@ -35,7 +35,7 @@ Incremental index: <project root>/.kimi-code/hooks/state/continual-learning-inde
    - `## Learned User Preferences`
    - `## Learned Workspace Facts`
 2. Load the incremental index JSON if present. It is a map of transcript file path to last-processed mtimeMs.
-3. Read `$KIMI_CODE_HOME/session_index.jsonl` (the data root defaults to `~/.kimi-code` when `KIMI_CODE_HOME` is unset). Keep only records whose `workDir` equals the project root. Locate each session directory via `sessionDir` (resolve relative paths against the data root), or by finding `sessions/*/<sessionId>` when only `sessionId` is present.
+3. Session transcripts live under the Kimi Code data root (`$KIMI_CODE_HOME`, default `~/.kimi-code`), NOT inside the project directory. Read `session_index.jsonl` there. Keep only records whose `workDir` equals the project root — normalize path separators and compare case-insensitively on Windows, since the index may store `D:/Code/Foo` while the session cwd is `D:\Code\Foo`. Locate each session directory via `sessionDir` (resolve relative paths against the data root), or by finding `sessions/*/<sessionId>` when only `sessionId` is present.
 4. Inspect only `agents/*/wire.jsonl` files under those session directories that are not in the index or whose mtime is newer than the indexed mtime. Skip extraction from transcripts that are previous runs of this updater (they contain the marker `AGENTS.md memory updater for continual learning` near the start), but still record them in the index so their mtimes are tracked.
 5. Pull out only durable, reusable items:
    - recurring user preferences or corrections
