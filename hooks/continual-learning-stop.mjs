@@ -128,11 +128,21 @@ function findSessionDirById(sessionId) {
   return null;
 }
 
+// Windows path separators and drive-letter casing differ between sources:
+// session_index.jsonl stores forward slashes ("D:/Code/Foo") while
+// resolve(input.cwd) yields backslashes ("D:\Code\Foo"). Normalize both sides
+// before comparing.
+function normalizeWorkDir(workDir) {
+  const normalized = resolve(workDir).replace(/\\/g, "/");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
 function sessionDirsForWorkDir(workDir) {
   const indexPath = join(kimiHome(), "session_index.jsonl");
   if (!existsSync(indexPath)) {
     return [];
   }
+  const targetWorkDir = normalizeWorkDir(workDir);
   const dirs = new Set();
   for (const line of readFileSync(indexPath, "utf-8").split("\n")) {
     const trimmed = line.trim();
@@ -141,7 +151,7 @@ function sessionDirsForWorkDir(workDir) {
     }
     try {
       const record = JSON.parse(trimmed);
-      if (record.workDir !== workDir) {
+      if (typeof record.workDir !== "string" || normalizeWorkDir(record.workDir) !== targetWorkDir) {
         continue;
       }
       if (typeof record.sessionDir === "string" && record.sessionDir) {
