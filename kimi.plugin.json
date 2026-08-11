@@ -1,7 +1,7 @@
 {
   "name": "continual-learning",
   "version": "1.0.0",
-  "description": "Incrementally learns durable user preferences and workspace facts from Kimi Code session transcripts and keeps AGENTS.md up to date with plain bullet points.",
+  "description": "Incrementally learns durable user preferences and workspace facts from Kimi Code session transcripts. Keeps AGENTS.md lean (preference bullets + memory index) and stores detailed workspace facts as topic files under .agents/memory/.",
   "license": "MIT",
   "keywords": [
     "continual-learning",
@@ -20,6 +20,6 @@
   ],
   "interface": {
     "displayName": "Continual Learning",
-    "shortDescription": "Keep AGENTS.md updated from Kimi Code session transcripts"
+    "shortDescription": "Mine session transcripts into .agents/memory/ + a lean AGENTS.md memory index"
   }
 }
