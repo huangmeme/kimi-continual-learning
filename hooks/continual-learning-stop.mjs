@@ -41,8 +41,41 @@ function parseBoolean(value) {
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
-function readEnvValue(primary, legacy) {
-  return process.env[primary] ?? process.env[legacy];
+// Settings can also come from <projectRoot>/.kimi-code/hooks/state/
+// continual-learning.config.json because persistent env vars are awkward to
+// manage on Windows; env vars still win when both are present.
+function loadConfigFile(projectRoot) {
+  const configPath = join(
+    projectRoot,
+    ".kimi-code",
+    "hooks",
+    "state",
+    "continual-learning.config.json"
+  );
+  if (!existsSync(configPath)) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(configPath, "utf-8"));
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setting({ envNames, configKey, config, parse, fallback }) {
+  let fromEnv;
+  for (const envName of envNames) {
+    fromEnv = fromEnv ?? process.env[envName];
+  }
+  if (fromEnv) {
+    return parse(fromEnv, fallback);
+  }
+  const fromConfig = config[configKey];
+  if (fromConfig !== undefined && fromConfig !== null && fromConfig !== "") {
+    return parse(String(fromConfig), fallback);
+  }
+  return fallback;
 }
 
 function kimiHome() {
@@ -222,6 +255,16 @@ function acquireLock(lockPath, staleMinutes) {
   }
 }
 
+function triggerMessage(projectRoot, lockPath) {
+  return [
+    "Automatic Stop-hook invocation: run the continual-learning skill now without a startup announcement. Read its complete instructions and launch one built-in coder subagent in the background (run_in_background: true); do not wait for completion.",
+    `Project root: ${JSON.stringify(projectRoot)}. Kimi Code data root: ${JSON.stringify(kimiHome())}.`,
+    `This invocation already acquired the lock at ${JSON.stringify(lockPath)}; follow the skill's failure and cleanup rules.`,
+    "Preserve the existing AGENTS.md structure, merge into matching rules, and put topic details in .agents/memory/. Do not recreate a separate preferences section or duplicate existing guidance.",
+    "Use the full updater instructions in the skill as the single source of truth. Report actual memory changes or errors only. Suppress the successful internal result No high-signal memory updates. without sending an acknowledgement; manual invocations still receive a result.",
+  ].join(" ");
+}
+
 async function main() {
   try {
     const rawInput = await readStdin();
@@ -231,46 +274,65 @@ async function main() {
 
     const stateDir = join(projectRoot, ".kimi-code", "hooks", "state");
     const statePath = join(stateDir, "continual-learning.json");
-    const indexPath = join(stateDir, "continual-learning-index.json");
     const lockPath = join(stateDir, "continual-learning.lock");
+    const config = loadConfigFile(projectRoot);
     const state = loadState(statePath);
     const now = Date.now();
 
-    const trialEnabled = parseBoolean(
-      readEnvValue("CONTINUAL_LEARNING_TRIAL_MODE", "CONTINUOUS_LEARNING_TRIAL_MODE")
-    );
+    const trialEnabled = setting({
+      envNames: ["CONTINUAL_LEARNING_TRIAL_MODE", "CONTINUOUS_LEARNING_TRIAL_MODE"],
+      configKey: "trialMode",
+      config,
+      parse: parseBoolean,
+      fallback: false,
+    });
     if (trialEnabled && state.trialStartedAtMs === null) {
       state.trialStartedAtMs = now;
     }
 
-    const trialDurationMinutes = parsePositiveInt(
-      readEnvValue(
+    const trialDurationMinutes = setting({
+      envNames: [
         "CONTINUAL_LEARNING_TRIAL_DURATION_MINUTES",
-        "CONTINUOUS_LEARNING_TRIAL_DURATION_MINUTES"
-      ),
-      TRIAL_DEFAULT_DURATION_MINUTES
-    );
-    const trialMinTurns = parsePositiveInt(
-      readEnvValue("CONTINUAL_LEARNING_TRIAL_MIN_TURNS", "CONTINUOUS_LEARNING_TRIAL_MIN_TURNS"),
-      TRIAL_DEFAULT_MIN_TURNS
-    );
-    const trialMinMinutes = parsePositiveInt(
-      readEnvValue("CONTINUAL_LEARNING_TRIAL_MIN_MINUTES", "CONTINUOUS_LEARNING_TRIAL_MIN_MINUTES"),
-      TRIAL_DEFAULT_MIN_MINUTES
-    );
+        "CONTINUOUS_LEARNING_TRIAL_DURATION_MINUTES",
+      ],
+      configKey: "trialDurationMinutes",
+      config,
+      parse: parsePositiveInt,
+      fallback: TRIAL_DEFAULT_DURATION_MINUTES,
+    });
+    const trialMinTurns = setting({
+      envNames: ["CONTINUAL_LEARNING_TRIAL_MIN_TURNS", "CONTINUOUS_LEARNING_TRIAL_MIN_TURNS"],
+      configKey: "trialMinTurns",
+      config,
+      parse: parsePositiveInt,
+      fallback: TRIAL_DEFAULT_MIN_TURNS,
+    });
+    const trialMinMinutes = setting({
+      envNames: ["CONTINUAL_LEARNING_TRIAL_MIN_MINUTES", "CONTINUOUS_LEARNING_TRIAL_MIN_MINUTES"],
+      configKey: "trialMinMinutes",
+      config,
+      parse: parsePositiveInt,
+      fallback: TRIAL_DEFAULT_MIN_MINUTES,
+    });
     const inTrialWindow =
       trialEnabled &&
       state.trialStartedAtMs !== null &&
       now - state.trialStartedAtMs < trialDurationMinutes * 60_000;
 
-    const minTurns = parsePositiveInt(
-      readEnvValue("CONTINUAL_LEARNING_MIN_TURNS", "CONTINUOUS_LEARNING_MIN_TURNS"),
-      DEFAULT_MIN_TURNS
-    );
-    const minMinutes = parsePositiveInt(
-      readEnvValue("CONTINUAL_LEARNING_MIN_MINUTES", "CONTINUOUS_LEARNING_MIN_MINUTES"),
-      DEFAULT_MIN_MINUTES
-    );
+    const minTurns = setting({
+      envNames: ["CONTINUAL_LEARNING_MIN_TURNS", "CONTINUOUS_LEARNING_MIN_TURNS"],
+      configKey: "minTurns",
+      config,
+      parse: parsePositiveInt,
+      fallback: DEFAULT_MIN_TURNS,
+    });
+    const minMinutes = setting({
+      envNames: ["CONTINUAL_LEARNING_MIN_MINUTES", "CONTINUOUS_LEARNING_MIN_MINUTES"],
+      configKey: "minMinutes",
+      config,
+      parse: parsePositiveInt,
+      fallback: DEFAULT_MIN_MINUTES,
+    });
 
     const effectiveMinTurns = inTrialWindow ? trialMinTurns : minTurns;
     const effectiveMinMinutes = inTrialWindow ? trialMinMinutes : minMinutes;
@@ -290,13 +352,16 @@ async function main() {
       hasTranscriptAdvanced;
 
     if (shouldTrigger) {
-      const lockStaleMinutes = parsePositiveInt(
-        readEnvValue(
+      const lockStaleMinutes = setting({
+        envNames: [
           "CONTINUAL_LEARNING_LOCK_STALE_MINUTES",
-          "CONTINUOUS_LEARNING_LOCK_STALE_MINUTES"
-        ),
-        DEFAULT_LOCK_STALE_MINUTES
-      );
+          "CONTINUOUS_LEARNING_LOCK_STALE_MINUTES",
+        ],
+        configKey: "lockStaleMinutes",
+        config,
+        parse: parsePositiveInt,
+        fallback: DEFAULT_LOCK_STALE_MINUTES,
+      });
       if (!acquireLock(lockPath, lockStaleMinutes)) {
         // Another updater is still running. Keep the cadence counters untouched
         // so a later Stop event re-evaluates and triggers once the lock is free.
@@ -311,12 +376,9 @@ async function main() {
       state.lastTranscriptMtimeMs = transcriptMtimeMs;
       saveState(statePath, state);
 
-      // NOTE: the skill has disableModelInvocation: true, so the model cannot
-      // invoke it via the Skill tool — this message must stay self-contained.
-      // Keep it consistent with skills/continual-learning/SKILL.md.
-      console.error(
-        `Run the continual-learning memory update now. Launch the built-in \`coder\` subagent in the background (run_in_background: true) for the full memory update flow. Session transcripts live under the Kimi Code data root (\`$KIMI_CODE_HOME\`, default \`~/.kimi-code\`), NOT inside the project directory: read \`session_index.jsonl\` there, keep records whose \`workDir\` equals the project root \`${projectRoot}\` (normalize path separators, and compare case-insensitively on Windows), locate each session directory via \`sessionDir\` or \`sessions/*/<sessionId>\`, and process the \`agents/*/wire.jsonl\` files under them. Use incremental transcript processing with index file \`${indexPath}\`: only consider wire.jsonl files not in the index or whose mtime is newer than the indexed mtime. Have the subagent refresh index mtimes, remove entries for deleted transcripts, and record only high-signal recurring user corrections and durable workspace facts. Memory is split by load strategy: user preferences go to \`AGENTS.md\` under \`## Learned User Preferences\` (always loaded, keep lean), while workspace facts go to topic files under \`${join(projectRoot, ".agents", "memory")}\` (one Markdown file per topic, read on demand), with \`AGENTS.md\` holding only a one-line pointer per topic under \`## Memory Index\` (topic, file path, when to read it). Exclude one-off/transient details and secrets. The lock directory \`${lockPath}\` was created for this run; the subagent must remove it when it finishes (success or failure) so later runs are not skipped. Do not wait for the background subagent; when its completion notification arrives, relay its final message. If no meaningful updates exist, the subagent should respond exactly: No high-signal memory updates.`
-      );
+      // SKILL.md is the single source of truth for the update flow; the skill
+      // is model-invocable, so this message only needs to point at it.
+      console.error(triggerMessage(projectRoot, lockPath));
       process.exitCode = 2;
       return;
     }

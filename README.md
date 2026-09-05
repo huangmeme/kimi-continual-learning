@@ -8,12 +8,10 @@ Kimi Code 插件：从会话 transcript 中增量学习用户偏好与工作区�
 
 1. 读取本项目相关的 Kimi Code 会话 transcript（位于 `$KIMI_CODE_HOME`，默认 `~/.kimi-code`）
 2. 只提取可复用、长期有效的信息：
-   - 反复出现的用户偏好 / 纠正
-   - 稳定的工作区事实
-3. 增量更新 `AGENTS.md`（最多保留两个章节，每章最多 12 条）：
-   - `## Learned User Preferences`
-   - `## Learned Workspace Facts`
-4. 用索引文件避免重复处理同一份 transcript
+   - 用户明确的偏好 / 纠正
+   - 已验证的工作区事实
+3. 保留 `AGENTS.md` 的既有结构做定点合并（不强制固定章节，不设会丢弃有效约束的条数上限）；细节按主题写入 `.agents/memory/` 下的 topic 文件，`AGENTS.md` 的 `## Memory Index` 只为每个主题保留一行索引（主题、路径、触发条件）
+4. 用增量索引避免重复处理同一份 transcript
 
 插件不会写入密钥、一次性指令或短暂细节。
 
@@ -80,14 +78,14 @@ Kimi Code 插件：从会话 transcript 中增量学习用户偏好与工作区�
 
 ## 使用方式
 
-安装并 reload 后，插件在后台按节奏自动工作，一般无需手动干预。
+安装并 reload 后，插件在后台按节奏自动工作，一般无需手动干预。自动运行（Stop hook 触发）不做开场宣告；没有高信号变更时完全静默，只在有实际变更或出错时简要汇报。
 
-也可以在对话里直接要求更新记忆，例如：
+也可以在对话里直接要求更新记忆（手动运行总会转达结果，包括无变更），例如：
 
 - 「从之前的对话里提炼偏好，更新 AGENTS.md」
 - 「跑一遍 continual-learning」
 
-首次触发前，项目里可以没有 `AGENTS.md`；updater 会在需要时创建上述两个章节。
+首次触发前，项目里可以没有 `AGENTS.md`；updater 只创建真正需要的章节与索引。
 
 ## 配置（可选）
 
@@ -103,6 +101,18 @@ Kimi Code 插件：从会话 transcript 中增量学习用户偏好与工作区�
 | `CONTINUAL_LEARNING_TRIAL_MIN_TURNS` | `3` | 试用期内最少 turn 数 |
 | `CONTINUAL_LEARNING_TRIAL_MIN_MINUTES` | `15` | 试用期内最少间隔（分钟） |
 | `KIMI_CODE_HOME` | `~/.kimi-code` | Kimi Code 数据根目录（transcript 所在位置） |
+
+Windows 下配置持久环境变量不便时，也可以在项目根目录放 `.kimi-code/hooks/state/continual-learning.config.json`。优先级：环境变量 > 配置文件 > 默认值。配置文件使用 camelCase 键：
+
+| 键 | 对应环境变量 |
+| --- | --- |
+| `minTurns` | `CONTINUAL_LEARNING_MIN_TURNS` |
+| `minMinutes` | `CONTINUAL_LEARNING_MIN_MINUTES` |
+| `lockStaleMinutes` | `CONTINUAL_LEARNING_LOCK_STALE_MINUTES` |
+| `trialMode` | `CONTINUAL_LEARNING_TRIAL_MODE` |
+| `trialDurationMinutes` | `CONTINUAL_LEARNING_TRIAL_DURATION_MINUTES` |
+| `trialMinTurns` | `CONTINUAL_LEARNING_TRIAL_MIN_TURNS` |
+| `trialMinMinutes` | `CONTINUAL_LEARNING_TRIAL_MIN_MINUTES` |
 
 ## 仓库结构
 
