@@ -30,6 +30,8 @@ Kimi Code 插件：从会话 transcript 中增量学习用户偏好与工作区�
 - 距上次运行至少 **120** 分钟
 - 且本项目相关 transcript 有新内容
 
+自动更新启动失败或中途出错时，插件会回滚节流状态，下次满足条件即尽快重试，不会消耗掉一次完整触发周期。
+
 ## 安装
 
 需要已安装 [Kimi Code CLI](https://www.kimi.com/code/docs/)。
@@ -97,7 +99,7 @@ Kimi Code 插件：从会话 transcript 中增量学习用户偏好与工作区�
 | `CONTINUAL_LEARNING_MIN_MINUTES` | `120` | 两次更新之间最少间隔（分钟） |
 | `CONTINUAL_LEARNING_LOCK_STALE_MINUTES` | `45` | 单飞锁超时后可回收（分钟） |
 | `CONTINUAL_LEARNING_TRIAL_MODE` | 关闭 | 设为 `1` / `true` 开启试用窗口 |
-| `CONTINUAL_LEARNING_TRIAL_DURATION_MINUTES` | `1440` | 试用窗口时长（分钟） |
+| `CONTINUAL_LEARNING_TRIAL_DURATION_MINUTES` | `1440` | 试用窗口时长（分钟，自启用后第一次 Stop 钩子运行起算） |
 | `CONTINUAL_LEARNING_TRIAL_MIN_TURNS` | `3` | 试用期内最少 turn 数 |
 | `CONTINUAL_LEARNING_TRIAL_MIN_MINUTES` | `15` | 试用期内最少间隔（分钟） |
 | `KIMI_CODE_HOME` | `~/.kimi-code` | Kimi Code 数据根目录（transcript 所在位置） |

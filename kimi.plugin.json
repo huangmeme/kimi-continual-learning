@@ -1,6 +1,6 @@
 {
   "name": "continual-learning",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Continual learning for Kimi Code: a Stop hook throttles triggers, a background coder subagent mines session transcripts, and memory is split into a lean AGENTS.md (existing structure preserved) plus on-demand topic files under .agents/memory/.",
   "license": "MIT",
   "keywords": [
